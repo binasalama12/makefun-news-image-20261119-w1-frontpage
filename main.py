@@ -1,61 +1,71 @@
-"""The World Today — front-page edition.
+#!/usr/bin/env python3
+"""The World Today - front page edition, 19 November 2026.
 
-Entry for make.fun's news-image-20261119: sums up Thursday,
-19 November 2026 in one image, laid out like a newspaper front
-page. The picture is drawn ahead of time and stored beside this
-program as entry.png; running the program publishes it to
-/output/entry.png exactly as the contest harness expects.
+Reads the bundled front-page artwork, checks it is a real PNG
+within the size budget, and publishes it to /output/entry.png.
 """
-
 import shutil
 import sys
 from pathlib import Path
 
-DAY = "Thursday, 19 November 2026"
-MAX_BYTES = 1_048_576  # the contest caps the image at 1 MiB
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+LIMIT_BYTES = 1024 * 1024
+HERE = Path(__file__).resolve().parent
 
-# The stories the front page carries, in the order they appear.
-HEADLINES = [
-    ("LEAD", "GTA VI is here: the 13-year wait ends with a global rollout"),
-    ("POLITICS", "Trump, Xi and Putin shake hands in Shenzhen at APEC"),
-    ("EUROPE", "EU proposes a 45 billion euro loan for Ukraine"),
-    ("SPACE", "Voyager 1 reaches one light-day from Earth"),
-    ("ARTS", "A Van Gogh sells for a record $190.4 million"),
-    ("ALSO", "Cyclone Akvan nears India; Jeffries to lead the US House"),
-    ("MARKETS", "Fed minutes point to further hikes; Anthropic eyes a huge debut"),
+FRONT_PAGE = [
+    ("LEAD", "GTA VI launches worldwide after a 13-year wait"),
+    ("SUMMIT", "Trump, Xi and Putin meet face to face at APEC Shenzhen"),
+    ("BRUSSELS", "EU proposes a 45 billion euro loan for Ukraine"),
+    ("DEEP SPACE", "Voyager 1 reaches one light-day from home"),
+    ("AUCTION", "A Van Gogh canvas sells for a record $190.4 million"),
+    ("MARKETS", "Fed minutes lean toward one more rate hike"),
+    ("CAPITOL", "Jeffries nominated, a first Black Speaker in reach"),
+    ("HEALTH", "Ebola in DR Congo passes 11,000 cases"),
 ]
 
 
-def source_image() -> Path:
-    """The image file shipped inside this repository."""
-    return Path(__file__).resolve().parent / "entry.png"
+def locate_artwork() -> Path:
+    candidate = HERE / "entry.png"
+    if not candidate.is_file():
+        raise SystemExit(f"missing artwork: {candidate}")
+    return candidate
 
 
-def check_image(path: Path) -> None:
-    """Refuse to publish anything that is not a valid small PNG."""
-    data = path.read_bytes()
-    if not data.startswith(PNG_SIGNATURE):
-        raise SystemExit(f"{path.name} is not a PNG file")
-    if len(data) > MAX_BYTES:
-        raise SystemExit(f"{path.name} is {len(data)} bytes, over the 1 MiB cap")
+def check_png(path: Path) -> int:
+    size = path.stat().st_size
+    if size > LIMIT_BYTES:
+        raise SystemExit(f"entry.png too large: {size} bytes over 1 MiB")
+    with path.open("rb") as handle:
+        header = handle.read(len(PNG_MAGIC))
+    if header != PNG_MAGIC:
+        raise SystemExit("entry.png does not start with a PNG signature")
+    return size
 
 
-def publish(target: Path) -> Path:
-    """Copy the front page to the harness output location."""
-    src = source_image()
-    check_image(src)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(src, target)
+def publish(source: Path) -> Path:
+    target_dir = Path("/output")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / "entry.png"
+    shutil.copyfile(source, target)
     return target
 
 
+def print_front_page(size: int) -> None:
+    print("=" * 62)
+    print("  THE WORLD TODAY - Thursday, 19 November 2026")
+    print("=" * 62)
+    for section, headline in FRONT_PAGE:
+        print(f"  [{section:<10}] {headline}")
+    print("-" * 62)
+    print(f"  Front page image verified: {size} bytes, PNG OK")
+    print("  Published to /output/entry.png")
+
+
 def main() -> int:
-    out = publish(Path("/output/entry.png"))
-    print(f"The World Today — {DAY}")
-    for tag, headline in HEADLINES:
-        print(f"  [{tag}] {headline}")
-    print(f"published {out} ({out.stat().st_size} bytes)")
+    artwork = locate_artwork()
+    size = check_png(artwork)
+    publish(artwork)
+    print_front_page(size)
     return 0
 
 
